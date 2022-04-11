@@ -1,11 +1,42 @@
 clear;
 
+%= = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = =
+%
+% DESCRIPTION:
+%
 % This MATLAB script calculates the gravity field, and a variety of other
 % data products, for (486958) Arrokoth. This script was created by Dr.
 % James Tuttle Keane (NASA Jet Propulsion Laboratory, California Institute 
-% of Technology, james.t.keane@jpl.nasa.gov)
+% of Technology, james.t.keane@jpl.nasa.gov).
+%
+% CODE HISTORY:
+%
+% The method for calculating gravity from polyhedron is based on the work
+% of Robert A. Werner: "The gravitational potential of a homogeneous 
+% polyhedron or don't cut corners," Celestial Mechanics and Dynamical
+% Astronomy, 50, 253-279, 1994,
+% http://adsabs.harvard.edu/abs/1994CeMDA..59..253W
+%
+% This methodology was originally coded by Jim Richardson (Lunar and 
+% Planetary Laboratory, University of Arizona): 
+% -> Version 1.0: 9 January 2003 ('gravmap')
+%
+% The code was subsequently modernized and modularized by David Minton 
+% (Purdue University):
+% -> Version 2.0: 5 June 2007 ('gravmod.f90')
+%
+% The code was subsequently adapted for Python using f2py by David Minton
+% (Purdue University):
+% -> Version 3.0: 5 June 2019
+%
+% The code was subsequently adapted for MATLAB by James Tuttle Keane (NASA
+% Jet Propulsion Laboratory, California Institute of Technology):
+% -> Version 4.0: 22 November 2019
+%
+%= = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = =
 
-%-- constants
+%% CONSTANTS
+
     d2r = 2*pi/360;
     r2d = 360/2/pi;
     G = 6.674e-11; % gravitational constant, m^3 kg^-2 s^-2
@@ -101,6 +132,7 @@ set(gca,'fontsize',fonts,'fontname',fontn);
         light_specular=0.01;          % fractional strength of specular light
         light_specularexponent=0.1;    % specular light exponent
         
+%== PRIMARY SHAPE MODEL ===================================================
         
     %-- trisurf (shape model)
         t1=trisurf(f.faces,f.vertices(:,1)/1000,f.vertices(:,2)/1000,f.vertices(:,3)/1000,...
@@ -113,25 +145,6 @@ set(gca,'fontsize',fonts,'fontname',fontn);
         
 %== OBJECTS FOR SCALE =====================================================
 
-
-%     t2=trisurf(f_SCALE2.faces,...
-%         f_SCALE2.vertices(:,1)/1000+2,f_SCALE2.vertices(:,2)/1000-8,f_SCALE2.vertices(:,3)/1000,...
-%         'edgecolor','none','facecolor',[180 197 204]/255,'facealpha',1,...
-%             'ambientstrength',light_ambient,...
-%             'diffusestrength',light_diffuse,...
-%             'specularstrength',light_specular,...
-%             'specularexponent',light_specularexponent);
-%         rotate(t2,[0 1 0],180)
-% 
-%     t3=trisurf(f_SCALE.faces,...
-%         f_SCALE.vertices(:,1)/1000+2,f_SCALE.vertices(:,2)/1000+8,f_SCALE.vertices(:,3)/1000,...
-%         'edgecolor','none','facecolor',[255 79 0]/255,'facealpha',1,...
-%             'ambientstrength',light_ambient,...
-%             'diffusestrength',light_diffuse,...
-%             'specularstrength',light_specular,...
-%             'specularexponent',light_specularexponent);
-%         rotate(t3,[0 1 0],180)
-%         
     t2=trisurf(f_SCALE2.faces,...
         f_SCALE2.vertices(:,1)/1000,f_SCALE2.vertices(:,2)/1000,f_SCALE2.vertices(:,3)/1000,...
         'edgecolor','none','facecolor',[180 197 204]/255,'facealpha',1,...
@@ -223,7 +236,8 @@ set(gca,'fontsize',fonts,'fontname',fontn);
         set(gca,'xticklabel',{},'yticklabel',{},'zticklabel',{});
         set(gca,'ticklen',[0 0])
         
-        
+%== VIEWING AND LIGHTING GEOMETRY =========================================
+
 exportfilename='global';
 for view_option=0
     cl=camlight;
@@ -298,6 +312,8 @@ for view_option=0
 
 axis tight;
     
+%== EXPORTING FIGURE ======================================================
+
     dosave=0 ;
     if dosave==1
         EXPORTFILENAME=['MU69_201211_',exportfilename,'_QUICKVIEW2_',VIEW_LABEL,'_SCALE'];
@@ -349,6 +365,11 @@ colormap(cc);
     neckfit.a =    -0.13;
     neckfit.b =     0.06;
     neckfit.c =     -4.18;
+    
+    % NOTE: in this code, I'm prescribing the planar slice. In a separate
+    % code, I explored the parameter space for all possible a, b, and c,
+    % and identified which slice resulted in the thinnest slice. This can
+    % be a little time-consuming.
         
     %-- plotting fit
         ytest=-8:0.1:8;
@@ -357,12 +378,12 @@ colormap(cc);
         
     IN_NECK=inpolyhedron(f,[xtest(:) ytest(:) ztest(:)]*1000);
     
-    FUCKITY=xtest.*0;
-    FUCKITY(IN_NECK)=1;
+    NECKTEST=xtest.*0;
+    NECKTEST(IN_NECK)=1;
   
     
         neck_surf=surf(xtest,ytest,ztest,'facealpha',0.5,...
-            'edgecolor','none','cdata',FUCKITY);
+            'edgecolor','none','cdata',NECKTEST);
         
         cc=colormap(parula(3));
 
@@ -391,8 +412,11 @@ colormap(cc);
 %% CREATING HIGH-RESOLUTION MASCON GRID FOR CALCULATING VOLUME AND MOMENTS
 disp(' ');disp('creating mascon grid for calculating moments, volumes, etc.');
 
+    % NOTE: I calculate moments of inertia using a mascon model, which is
+    % time-intensive. Thus, I usually do this just once and save the
+    % result, so I don't have to do it again.
+
 %-- checking to see if the high-resolution grid has already been calculated
-%     check = isfile(['MOMENTSGRID_201030_',global_mesh,'.mat']);
     check = isfile(['MOMENTSGRID_191126_',global_mesh,'.mat']);
 
 if check==1
@@ -601,31 +625,6 @@ end
 %% POLYHEDRA GRAVITY CALCULATION
 disp(' ');disp('performing polyhedra gravity calculation');
 
-%= = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = =
-%
-% Calculating polyhedron gravity after Robert A. Werner
-% "The gravitational potential of a homogeneous polyhedron or don't cut
-% corners," Celestial Mechanics and Dynamical Astronomy, 50, 253-279, 1994,
-% http://adsabs.harvard.edu/abs/1994CeMDA..59..253W
-%
-% Original code developed by:
-% Jim Richardson, Lunar and Planetary Laboratory, University of Arizona
-% Version 1.0: 9 January 2003 ('gravmap')
-%
-% Modernized and modularized by:
-% David Minton, Purdue University
-% Version 2.0: 5 June 2007 ('gravmod.f90')
-%
-% Adapted for Python using f2py by:
-% David Minton, Purdue University
-% Version 3.0: 5 June 2019
-%
-% Adapted for MATLAB by:
-% James Tuttle Keane, California Institute of Technology
-% Version 4.0: 22 November 2019
-%
-%= = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = =
-
 %-- small number, used when quantities hit singularities
     smallnumber=1e-10;
     
@@ -639,7 +638,6 @@ disp(' ');disp('performing polyhedra gravity calculation');
     % EXTERNAL GRID - - - - - - - - - - - - - - - - - - - - - - - - - - - -
     % (do this if you want to evaluate things in space around the body)
     
-    
 %         spc=0.2;
 %         test_x = (-35:spc:35)*1000;
 %         test_y = (-35:spc:35)*1000;
@@ -648,7 +646,12 @@ disp(' ');disp('performing polyhedra gravity calculation');
 %         testpoints=[TEST_X(:) TEST_Y(:) TEST_Z(:)];
 
         % NOTE: to reform the matrix, use reshape:
-        %TEST_XR=reshape(testpoints(:,1),size(TEST_X,1),size(TEST_X,2),size(TEST_X,3));
+        % TEST_XR=reshape(testpoints(:,1),size(TEST_X,1),size(TEST_X,2),size(TEST_X,3));
+        
+        % NOTE: In this demonstration script, I focus on just quantities
+        % evaluated on the surface of the body. If you want to look at
+        % quantities off the surface of the body, you need to change some
+        % of the plotting routines later.
 
     % - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
         
@@ -866,7 +869,7 @@ for i=1:1:n
     %-- calculating the gravitational potential from the polyhedron:
         dU = (dz/2) .* (det12.*L12 + det23.*L23 + det31.*L31) - (dz.^2/2 .* af);
         
-        % note, the test points cannot be inside the body, else the
+        % Note: the test points cannot be inside the body, else the
         % derivation breaks down
          
     %-- calculating the gravitational acceleration, in the polygon 
@@ -921,7 +924,7 @@ disp(' ');disp('calculating gravity+rotational potentials and accelerations')
 center_of_mass  = COM_ARRAY(3,:);
 rotation_vector = MAX_PRINCIPAL_AXIS_ARRAY(3,:);
 
-rotation_period = 15.92*60*60;           % seconds (MU69)
+rotation_period = 15.92*60*60;           % seconds (rotation period of MU69)
 rotation_rate   = 2*pi/rotation_period;  % radians/second
 
 rotation_vector=rotation_vector/norm(rotation_vector);
@@ -969,7 +972,6 @@ rotation_vector=rotation_vector/norm(rotation_vector);
     AX = GX + CX;
     AY = GY + CY;
     AZ = GZ + CZ;
-    
     
     TOTAL_ACCELERATION_MAGNITUDE=(AX.^2 + AY.^2 + AZ.^2).^(1/2);
     
@@ -1077,6 +1079,11 @@ end
         rotation_vector2=rotation_vector*rotation_rate;
         
     %-- escape speed
+    
+        % Note: there are two formulations here, depending on if it's the
+        % escape speed in the 'normal' direction, or the 'downslope'
+        % direction.
+        
         ESCAPE_SPEED(i) = -dot(ftv',cross(rotation_vector2',rp_vector)) + ...
                           (dot(ftv',cross(rotation_vector2',rp_vector))^2 + ...
                            2*UMAX - ...
@@ -1353,6 +1360,9 @@ end
             
 %== DOWNSLOPE ARROWS ======================================================
 
+% Note: I experimented with a variety of ways of plottiing the downslope
+% vectors. That's why this section is so clunky. 
+
 if DO_SLOPE_VECTORS==1
     random_i=randperm(size(centers,1));
     lwidth=0.5;
@@ -1362,23 +1372,23 @@ if DO_SLOPE_VECTORS==1
 % - - - - - - - - - - - - - - - - - (Z)
 for x_test=[-20:0.5:17]*1000
     for y_test=[-11:0.5:11]*1000
-        for fuck_test=[-1 1]
+        for vector_test=[-1 1]
         [intersect,~,~,~,~]=...
         TriangleRayIntersection([x_test, y_test, 0*1000],...
-                                [x_test, y_test, fuck_test*100*1000],...
+                                [x_test, y_test, vector_test*100*1000],...
                                 vert1,vert2,vert3);
 % % - - - - - - - - - - - - - - - - - (Y)
 % for x_test=[-20:0.5:17]*1000
 %     for z_test=[-5:0.5:5]*1000
-%         for fuck_test=[-1 1]
+%         for vector_test=[-1 1]
 %         [intersect,~,~,~,~]=...
 %         TriangleRayIntersection([x_test, 0*1000, z_test],...
-%                                 [x_test, fuck_test*100*1000, z_test],...
+%                                 [x_test, vector_test*100*1000, z_test],...
 %                                 vert1,vert2,vert3);
 % % - - - - - - - - - - - - - - - - - (X)
 % for y_test=[-11:0.5:11]*1000
 %     for z_test=[-5:0.5:5]*1000
-%         for fuck_test=[1]
+%         for vector_test=[1]
 %         [intersect,~,~,~,~]=...
 %         TriangleRayIntersection([10*1000, y_test z_test],...
 %                                 [-1*100*1000, y_test z_test],...
@@ -1396,8 +1406,8 @@ for x_test=[-20:0.5:17]*1000
         north=NORTH(i,:);
         east =EAST(i,:);
 
-        fuck=[FORCE_EAST(i); FORCE_NORTH(i)];
-        fuck=fuck/norm(fuck);
+        FORCE_SURFACE=[FORCE_EAST(i); FORCE_NORTH(i)];
+        FORCE_SURFACE=FORCE_SURFACE/norm(FORCE_SURFACE);
 
 
         %scl_super=1;
@@ -1445,7 +1455,6 @@ end
 end
     
 %== CREATING IMAGES =======================================================
-
 
 for view_option=[1:1:6]
 delete(cl);
@@ -1545,8 +1554,10 @@ delete(cl);
         xlim([-20 17])
         zlim([-6 7]);
         ylim([-11 11])
-%         axis tight;
+        %axis tight;
     
+%== EXPORTING FIGURES =====================================================
+
     dosave=0;
     if dosave==1
         EXPORTFILENAME=['MU69_201211_',exportfilename,'_',num2str(density,'%4.1i'),'_',VIEW_LABEL,'_wtf2'];
